@@ -1,0 +1,33 @@
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userprefs
+*.vshost.*
+
+# Build output
+**/obj/
+**/bin/*
+!**/bin/Debug/
+**/bin/Debug/*
+
+# --- Exceptions: third-party DLLs referenced by csproj HintPath (bin\Debug\...) ---
+# TODO(Phase 0): move these into a vendor/lib folder and fix HintPaths
+!**/bin/Debug/AML_LogControl.dll
+!**/bin/Debug/AML_Socket.dll
+!**/bin/Debug/Advantech.Adam.dll
+!**/bin/Debug/Advantech.Common.dll
+!**/bin/Debug/Advantech.Protocol.dll
+# Runtime settings file read from the working directory
+!**/bin/Debug/Setting.xml
+
+# NuGet packages are committed on purpose (Agito.AAMotion may not be restorable offline)
+# Archived snapshots (kept on disk only)
+*.zip
+
+# Logs / data
+*.log
+LogError.txt
+
+# Local backups (e.g. old nested .git from AML Bond wave 1107)
+_backup/

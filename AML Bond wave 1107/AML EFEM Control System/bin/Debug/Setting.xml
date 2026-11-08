@@ -1,0 +1,250 @@
+<Setting>
+  <MainForm>
+    <Logfolder value="D:\AML\Log\AML EFEM Control System" />
+    <LogCountLimit value="200" />
+    <LogFolderLimit value="30" />
+    <LogOutIdleLimit value="900" />
+  </MainForm>
+  <EFEM>
+    <IP value="127.0.0.1" />
+    <!-- 預設Listen IP，沒特殊應用不要改-->
+    <Port value="6000" />
+    <!-- 預設Listen Port，沒特殊應用不要改 -->
+    <EnableAlarm value="1" />
+    <RobotAlarmOffset value="10000000" />
+    <LPAlarmOffset value="20000000" />
+    <AlignerAlarmOffset value="30000000" />
+  </EFEM>
+  <Robot>
+    <Enable value="1" />
+    <!-- 0,1  -->
+    <Brand value="Hirata" />
+    <!-- Hirata  -->
+    <ArmCount value="2" />
+    <!-- 若為1為單Arm，2為雙Arm -->
+    <Main_COM value="COM10,19200,7,E,1" />
+    <!-- 預設勿動-->
+    <Speed value="20" />
+    <!-- 初始Robot速度 -->
+    <Z_Speed value="20" />
+    <!-- 初始RobotZ速度 -->
+    <Motion value="Normal" />
+    <!-- Normal or Snake -->
+    <UpperArmTarget value="Wafer" />
+    <!-- Wafer,Frame -->
+    <LowerArmTarget value="Wafer" />
+    <!-- Wafer,Frame -->
+    <UpperArmType value="Contact" />
+    <!-- Vacuum,Conctact,Grip -->
+    <LowerArmType value="Contact" />
+    <!-- Vacuum,Conctact,Grip -->
+    <SmartGetDelayms value="1000" />
+    <DeviceName value="Robot" />
+  </Robot>
+  <Robot2>
+    <Enable value="0" />
+    <!-- 0,1  -->
+    <Brand value="Hirata" />
+    <!-- Hirata  -->
+    <ArmCount value="2" />
+    <!-- 若為1為單Arm，2為雙Arm -->
+    <Main_COM value="COM30,19200,7,E,1" />
+    <!-- 預設勿動-->
+    <Speed value="30" />
+    <!-- 初始Robot速度 -->
+    <Z_Speed value="30" />
+    <!-- 初始RobotZ速度 -->
+    <Motion value="Snake" />
+    <!-- Normal or Snake -->
+    <UpperArmTarget value="Wafer" />
+    <!--  Wafer,Frame -->
+    <LowerArmTarget value="Wafer" />
+    <!--  Wafer,Frame -->
+    <UpperArmType value="Vacuum" />
+    <!--  Vacuum,Conctact,Grip -->
+    <LowerArmType value="Vacuum" />
+    <!--  Vacuum,Conctact,Grip -->
+    <SmartGetDelayms value="1000" />
+    <DeviceName value="Robot2" />
+  </Robot2>
+  <Aligner>
+    <Enable value="1" />
+    <!-- 0,1  -->
+    <Brand value="Hirata" />
+    <!-- Hirata  -->
+    <Type value="WaferNormal" />
+    <!-- WaferNormal, FrameClamp, FrameTurn  -->
+    <Main_COM value="COM11,19200,8,N,1" />
+    <!-- 預設勿動-->
+    <Present_OCR_Top value="1" />
+    <IP_OCR_Top value="192.168.0.11" />
+    <!-- 此IP不建議更動  -->
+    <Port_OCR_Top value="2000" />
+    <!-- 此Port不建議更動  -->
+    <Present_OCR_Bottom value="0" />
+    <IP_OCR_Bottom value="192.168.0.12" />
+    <!-- 此IP不建議更動  -->
+    <Port_OCR_Bottom value="2000" />
+    <!-- 此Port不建議更動  -->
+    <IP_Frame value="192.168.0.201" />
+    <!-- 此IP不建議更動  -->
+    <Port_Frame value="9100" />
+    <!-- 此Port不建議更動  -->
+    <BarcodeCOM_Frame value="COM13" />
+    <DeviceName value="Aligner" />
+    <PutAddress value="110" />
+    <!-- 110 or 120 -->3
+  </Aligner>
+  <Aligner2>
+    <Enable value="0" />
+    <!-- 0,1  -->
+    <Brand value="Hirata" />
+    <!-- Hirata  -->
+    <Type value="WaferNormal" />
+    <!-- WaferNormal, FrameClamp, FrameTurn  -->
+    <Main_COM value="COM11,19200,8,N,1" />
+    <!-- 預設勿動-->
+    <Present_OCR_Top value="1" />
+    <IP_OCR_Top value="192.168.0.11" />
+    <!-- 此IP不建議更動  -->
+    <Port_OCR_Top value="2000" />
+    <!-- 此Port不建議更動  -->
+    <Present_OCR_Bottom value="0" />
+    <IP_OCR_Bottom value="192.168.0.12" />
+    <!-- 此IP不建議更動  -->
+    <Port_OCR_Bottom value="2000" />
+    <!-- 此Port不建議更動  -->
+    <IP_Frame value="192.168.0.201" />
+    <!-- 此IP不建議更動  -->
+    <Port_Frame value="9100" />
+    <!-- 此Port不建議更動  -->
+    <BarcodeCOM_Frame value="COM31" />
+    <DeviceName value="Aligner2" />
+    <PutAddress value="110" />
+    <!-- 110 or 120 -->
+  </Aligner2>
+  <P1>
+    <!-- P1~P4  -->
+    <Enable value="1" />
+    <!-- 0,1  -->
+    <Brand value="Hirata" />
+    <!-- Hirata  -->
+    <Type value="Wafer" />
+    <!--  Wafer,Frame (25,13) -->
+    <Main_COM value="COM15,9600,8,N,1" />
+    <!-- 非特殊使用請勿更動-->
+    <RFID_Enable value="1" />
+    <!-- 0,1  -->
+    <RFID_COM value="COM20,9600,8,E,1" />
+    <!-- 非特殊使用請勿更動-->
+    <E84_Enable value="1" />
+    <!-- 0,1  -->
+    <E84_COM value="COM25,115200,8,N,1" />
+    <!-- 非特殊使用請勿更動-->
+    <DeviceName value="P1" />
+  </P1>
+  <P2>
+    <Enable value="1" />
+    <Brand value="Hirata" />
+    <Type value="Wafer" />
+    <Main_COM value="COM16,9600,8,N,1" />
+    <RFID_Enable value="1" />
+    <RFID_COM value="COM21,9600,8,E,1" />
+    <E84_Enable value="1" />
+    <E84_COM value="COM26,115200,8,N,1" />
+    <DeviceName value="P2" />
+  </P2>
+  <P3>
+    <Enable value="0" />
+    <Brand value="Hirata" />
+    <Type value="Wafer" />
+    <Main_COM value="COM17,9600,8,N,1" />
+    <RFID_Enable value="1" />
+    <RFID_COM value="COM22,9600,8,E,1" />
+    <E84_Enable value="1" />
+    <E84_COM value="COM27,115200,8,N,1" />
+    <DeviceName value="P2" />
+  </P3>
+  <P4>
+    <Enable value="0" />
+    <Brand value="Hirata" />
+    <Type value="Wafer" />
+    <Main_COM value="COM18,9600,8,N,1" />
+    <RFID_Enable value="1" />
+    <RFID_COM value="COM23,9600,8,E,1" />
+    <E84_Enable value="1" />
+    <E84_COM value="COM28,115200,8,N,1" />
+    <DeviceName value="P1" />
+  </P4>
+  <Station_1>
+    <!-- Station_1,Station_2,Station_3,Station_4.... 最多有8個Station-->
+    <Enable value="1" />
+    <!-- 0,1  -->
+    <StationName value="Tool" />
+    <!-- 名稱建議用CHAMBER1/CHAMBER2/Tool1/Tool2-->
+    <PutAddress value="1110" />
+    <!-- Station Address 一般來說從1110,1120,1130新增，以此類推 -->
+    <MaxSlot value="1" />
+    <!-- 需放幾層，若只能放一片則設為1，烤箱類放多層再設定  -->
+    <SlotPitch value="0" />
+    <!-- Unit:mm 根據Station間隔決定-->
+    <Type value="Wafer" />
+    <!-- Wafer,Frame-->
+  </Station_1>
+  <Station_2>
+    <Enable value="0" />
+    <StationName value="WaferStage" />
+    <PutAddress value="1120" />
+    <MaxSlot value="1" />
+    <SlotPitch value="10" />
+    <!--Unit:mm 根據Station間隔決定-->
+    <Type value="Frame" />
+  </Station_2>
+  <Station_3>
+    <Enable value="0" />
+    <StationName value="CHAMBER3" />
+    <PutAddress value="1130" />
+    <MaxSlot value="5" />
+    <SlotPitch value="10" />
+    <!--Unit:mm 根據Station間隔決定-->
+    <Type value="Wafer" />
+  </Station_3>
+  <Station_4>
+    <Enable value="0" />
+    <StationName value="Aligner2" />
+    <PutAddress value="110" />
+    <MaxSlot value="1" />
+    <SlotPitch value="0" />
+    <!--Unit:mm 根據Station間隔決定-->
+    <Type value="Frame" />
+  </Station_4>
+  <Station_5>
+    <Enable value="0" />
+    <StationName value="Aligner1" />
+    <!-- FrameAligner 通訊是透過TCP/IP至PLC，非透過API，這邊只拿來記錄Teaching點位-->
+    <PutAddress value="120" />
+    <!-- FrameAligner 已與Hirata談定，請固定設為120-->
+    <MaxSlot value="1" />
+    <SlotPitch value="0" />
+    <!--Unit:mm -->
+    <Type value="Wafer" />
+  </Station_5>
+  <Adam_1>
+    <Enable value="1" />
+    <!--Adam6050  建議開啟，否則EFEM斷電不知道重新自動設定Robot速度 -->
+    <IP value="192.168.0.6" />
+    <Type value="Adam6050" />
+  </Adam_1>
+  <Adam_2>
+    <Enable value="0" />
+    <!--Adam6050  若無可關閉，舊款FrameAligner適用直接用Adam控制的，如CT-300 -->
+    <IP value="192.168.0.7" />
+    <Type value="Adam6050" />
+  </Adam_2>
+  <Adam_3>
+    <Enable value="0" />
+    <!--Adam6024  DIO/AIO(目前少用可關閉)-->
+    <IP value="192.168.0.8" />
+    <Type value="Adam6024" />
+  </Adam_3>
+</Setting>

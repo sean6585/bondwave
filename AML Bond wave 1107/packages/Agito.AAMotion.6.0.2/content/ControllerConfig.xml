@@ -1,0 +1,12 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ControllerConfig>
+  <IP>
+    <Address>172.1.1.103</Address>
+  </IP>
+  <Controller>
+    <Type>AGC301</Type>
+  </Controller>
+  <Axis>
+    <Index>3,4,5</Index>
+  </Axis>
+</ControllerConfig>
