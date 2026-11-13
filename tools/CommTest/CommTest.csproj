@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Bondwave 通訊測試工具（唯讀）
+    只讀取 AGD301 控制器 / Z1 / Z2 的狀態，不含任何 MotorOn、移動、寫參數的呼叫。
+  -->
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <RootNamespace>CommTest</RootNamespace>
+    <AssemblyName>BondwaveCommTest</AssemblyName>
+    <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 與主程式相同版本的 Akribis/Agito SDK；build target 會把 AACommServer.exe 複製到輸出資料夾 -->
+    <PackageReference Include="Agito.AAMotion" Version="6.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 舊參數備份，用來 (1) 產生「可查詢名稱」白名單 (2) 和控制器現值做比對 -->
+    <None Include="..\..\AKRIBIS\202408081637.par" Link="reference.par" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
