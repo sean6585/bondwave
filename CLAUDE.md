@@ -2,7 +2,7 @@
 
 > 給在這個 repo 工作的 Claude 讀。描述**硬體現況、安全邊界、已知問題**。
 > 程式碼細節請直接看原始碼；這份文件記錄的是看程式碼看不出來的東西。
-> 最後更新：2026-11-13
+> 最後更新：2026-11-19（加入 11/13 通訊測試、11/17–19 相機 1700 fps 驗證結果，見 §8）
 
 ---
 
@@ -36,9 +36,14 @@ IPC (Windows)
 - 隔離輸入 27 / 隔離輸出 17 / 雙向差動 I/O (RS422) 8
 - 編碼器 3 port，軟體可設 AquadB / Sin-Cos 1Vpp / BiSS-C / EnDat2.2
 
-**SDK**：`AAMotion.dll` (Agito.AAMotion 6.0.2 NuGet)，程式用 `AGM800` 類別連線。
-`AGM800` 是 SDK 的通用入口類別，**不是**控制器型號（AGM800 實際上是另一款 8 軸 Central-i 主控制器）。
-套件內含 `net40` / `net48` / `net6.0` / `net8.0` 版本 DLL。
+**SDK**：`AAMotion.dll` (Agito.AAMotion 6.0.2 NuGet)。套件內含 `net40` / `net48` / `net6.0` / `net8.0` 版本 DLL。
+
+- **AGD301 應使用 `AGC301` 類別**：SDK changelog v5.1.1 寫明「Rename Class AGD301 to AGC301」。2026-11-13 實測 `new AGC301(50).Connect("172.1.1.101")` 成功（約 0.3 s）。
+- 舊主程式用的是 `AGM800` 類別（另一款 8 軸 Central-i 控制器的類別），歷史上也能連，但不是對應型號。新程式請用 `AGC301`。
+- 兩者都繼承 `MotionController`；`AGC301` 的欄位是 `A` / `B` / `C`（`ISingleAxis`）與 `IO`（`IIOModule`）。
+- SDK 會在背景啟動 `AACommServer.exe`。程式結束時若沒呼叫 `CloseAACommServer()`，它會殘留並鎖住 bin 資料夾的檔案（重新建置會失敗）。
+
+**控制器實測識別（2026-11-13，typed 屬性）**：ProductType=11、FirmwareVersion=4444、HardwareVersion=1001、BootFirmwareVersion=1013、NumberOfAxes=3、MaxContCurrent=12750 mA（≈9 Arms）、MaxPeakCurrent=25500 mA（≈18 Arms）、Bus 12–90 V、CurrentLoopSampleRate=16384 Hz、SerialNumber/ManufacturingDate=-1（未讀到）。上電時 VBus≈55.5 V、VLogic≈5.1 V。
 
 ### 2.2 軸配置
 
@@ -53,6 +58,14 @@ IPC (Windows)
 | 接線現況 | I/O 接 **X4 General I/O**，其餘接 Axis A port | IO / ENC / Motor M1-M3 / PE 全接 Axis B |
 
 > ⚠️ `.par` 的舊值是**前一顆 Z1** 的設定。新馬達 `APM-XB04ADK3` 的相數、額定電流、編碼器型式**尚未確認**，不可沿用舊參數直接通電。
+>
+> ⚠️ **2026-11-13 實測：控制器裡的 Z1 參數仍是舊值**（MotorType=4、ContCL=1630、PeakCL=4800、BrakeUsed=1、BrakeMode=2、FwdPLim/RevPLim=±1.6e9），與 `202408081637.par` 完全相同。換馬達後還沒改過。
+
+**上電後的位置讀值（2026-11-13）**：Z1 Pos≈130,496,811、Z2 Pos≈130,636,895（兩軸都約 1.3 億 counts，原因未明：可能是絕對式編碼器讀值或計數器初值）。
+- Z2 的 Pos 超過 `BFwdPLim=16,000,000`，所以 Z2 `LimitStat` 一上電就是 0x2（推測為軟體正向極限旗標）。
+- 舊主程式的 Z1 保護條件 `Pos > 800000` 在這個讀值下會**一連線就觸發**。改主程式前要先釐清位置原點。
+
+**手推編碼器（馬達 Off，2026-11-13）**：兩軸 Pos 都會跟著變化 → 編碼器接線有通。Z1 淨變化 +1,855 counts、Z2 淨變化 −162,935 counts。**方向與每 mm counts 尚未量測**（沒有記錄實際推的距離）。
 
 ### 2.3 AGD301 接頭（來自應用筆記，**非完整接頭表**）
 
@@ -91,7 +104,15 @@ Load cell → TM3 訊號放大器（創唯實業）→ AGD301 Analog Input #2 �
 
 - TM3 是**類比式**放大器，面板下 4 個旋鈕：`ZERO C`（零點粗調）、`ZERO F`（零點細調）、`SPAN C`（增益粗調）、`SPAN F`（增益細調）。調整順序：**先粗調再細調**。
 - 出廠設定：零點 0V @ 0.0 mV/V；放大 10V @ 2.0 mV/V
-- 控制器端另有 `AAInOffset = −390 mV`、`AAInGain[2] = −13950`（= −0.21286 /mV，**負值**）
+- 控制器端參數（`AAInMode[2]=0x20003` = 軸 B、Force Feedback）：
+
+  | 參數 | `202408081637.par` | **控制器現值（2026-11-13）** |
+  |---|---|---|
+  | `AAInGain[2]` | −13950（= −0.21286 /mV） | **+13950 ⚠ 正負號相反** |
+  | `AAInOffset[2]` | −456（PCSuite 截圖顯示 −390 mV） | **0** |
+
+  有人改過這兩個值（可能是調 TM3 時）。**正確的正負號確認前，不可進入力控模式**：符號錯會變成正回授，越壓越大力。
+- 2026-11-13 讀到 AI2 原始值 = 0、`BForce` = 0（其他 AI 有小幅變動）→ TM3 可能沒上電或 AI#2 沒接到，待查。
 - ⚠️ **力量訊號有兩層零點/增益**（TM3 硬體旋鈕 + 控制器參數）。校正時必須先決定歸零歸在哪一層，另一層不動，否則會互相抵銷或疊加誤差。
 
 ### 2.5 真空 Modbus 暫存器
@@ -109,10 +130,41 @@ Load cell → TM3 訊號放大器（創唯實業）→ AGD301 Analog Input #2 �
 - Cheetah+ 640 CXP（Exosens/Xenics），SWIR 900–1700 nm，640×512，20 µm pixel，最高 1730 fps
 - Frame grabber：Euresys Coaxlink Quad CXP-12 Value，韌體 variant `1-camera` rev 530
 - **必須接兩條 CXP 線**：單條 PoCXP（17 W）餵不動相機（耗電 15.3 W + TE 製冷湧入電流），實測拔掉第二條相機就不亮。2× CXP-6 總頻寬與 1× CXP-12 相同（12.5 Gbps），不影響幀率
-- 相機參數用 **`AcquisitionFrameTime`（µs 週期）**，不是 FrameRate。`FPS = 1,000,000 ÷ FrameTime`。約束：`ExposureTime ≤ AcquisitionFrameTime`
+- 相機參數用 **`AcquisitionFrameTime`（µs 週期，2026-11-19 使用者確認單位）**，不是 FrameRate。`FPS = 1,000,000 ÷ FrameTime`。約束：`ExposureTime ≤ AcquisitionFrameTime`。1700 fps → FrameTime 588。
+- **`AcquisitionFrameTime = 0` 不是有效值**：`TriggerMode = Off`（自由連拍）時相機依 FrameTime 拍，設 0 會完全沒有影像。
+- `TriggerMode = On` + `TriggerSource = Timer` 時，FPS 由相機內部 Timer 決定，不看 FrameTime（FrameTime 設 0 或 1 時仍能出圖，約 1000 fps）。
+- ⚠️ **2026-11-19 達到 1700 fps 時用的是哪一組觸發設定（Trigger Off + FrameTime 588，或 Trigger On + Timer 週期 588），沒有記錄下來，下次設定時請補上。**
+- 設定順序：先降 `ExposureTime`、再縮 `AcquisitionFrameTime`；改完要在 Studio 停止 → 重新開始擷取。
 - Memento 持續報 `CoaXPress Warning: Unexpected data width in pixel format (0x0007)` — grabber 不認得相機送的格式代碼，**未解**。目前設 Mono8 時資料量正確（327,680 bytes/frame）
+- Memento 開 Verbose 時每張影像會產生數十行 log，1700 fps 下會吃 CPU/磁碟。正式錄影請調回 Warning / Info。
 - C# 整合：eGrabber SDK 內含 .NET binding，範例在 `C:\Program Files\Euresys\eGrabber\samples\csharp\`
-- 滿速磁碟頻寬約 **1.1 GB/s**，必須 NVMe
+
+#### 2.6.1 1700 fps 錄影（2026-11-19 驗證通過）
+
+**頻寬需求**（Mono8 640×512）：1700 × 327,680 B ≈ **557 MB/s**。
+
+| 環節 | 實測 / 規格 | 結論 |
+|---|---|---|
+| CXP 鏈路 | 2×CXP-6 = 12.5 Gbps | 足夠 |
+| Coaxlink PCIe | 實際連線 **Gen3 x8**（裝置管理員屬性） | 足夠 |
+| grabber → RAM | Memento：`CIC lost = 0`、`frame store filled with 0.0 MB`、`SourceTag` 連號 | 不掉張 |
+| **C: 磁碟** | `96FD25-S4TB-AD1`，**SATA SSD**，連續寫入實測 **344 MB/s**（8 GB、WriteThrough） | **不夠持續寫 557 MB/s** |
+| RAM | 32 GB | 可當緩衝 |
+
+**資料流**：相機 → Coaxlink（板上只有小 FIFO）→ DMA 到 **PC RAM 的 Buffer queue** → Recorder 邊錄邊寫 container。磁碟跟不上時影像在 RAM 排隊；RAM 塞滿才會掉張。
+
+**驗證通過的設定**：
+- eGrabber Studio → 左側第 2 個圖示（Buffer queue）→ Replay 1000 + **Additional 9000** = 10,000 buffers（≈3.3 GB）→ Reallocate（要先停止擷取）
+- Recorder container 5000 MiB（= 16,000 張 = 1700 fps 下 9.4 s），目錄 `C:\W`
+- 結果（chapter `SeanTest3`）：**16,000 張、第一→最後 9.407263 s、1700.71 fps、0 缺張**；間隔 588 µs ×15,782、587 ×183、589 ×34
+- 寫完要約 15 s（磁碟速度），這是正常的，不代表掉張。之前用 2000 buffers 量到「約 1067 fps」其實是磁碟速度，不是相機速度。
+
+**錄影長度估算**（推算，未實測）：RAM 累積速度 ≈ 557 − 344 ≈ 213 MB/s，約 20 GB 可用 buffer → 邊錄邊寫約 90 s；只存 RAM 約 36 s。要更長或連續錄影 → **加一顆 NVMe SSD**（PCIe 4.0、持續寫入 > 1 GB/s）專門錄影。
+
+**時間戳**：
+- Studio Playback（REC → Close container → Playback → ⓘ）顯示的 `Timestamp` 單位是 **ns**，實際精度 1 µs（尾數都是 000）。Record 編號從 0 開始。
+- 時鐘是開機/擷取卡啟動後累計值（約 8.9e12 ns ≈ 2.5 h），**不是牆上時間**；只能拿來算差值。Memento 的 `readout started at ... us` 是同一個時鐘（µs）。
+- 檢查缺張：`tools/RecorderCheck/Check-Recording.ps1`（見 §8.3）。
 
 ---
 
@@ -132,6 +184,8 @@ Load cell → TM3 訊號放大器（創唯實業）→ AGD301 Analog Input #2 �
 | 項目 | 現況 |
 |---|---|
 | A 軸韌體行程限位 | **關閉**（±1.6e9）。唯一保護是 20 ms 輪詢的 `Pos > 800000` 軟體判斷 |
+| A 軸硬體限位 | 2026-11-13 讀控制器：**沒有任何數位輸入（DInMode）指定給 Axis A**。Z1 限位即使接在 X4，控制器也不會當成限位 |
+| B 軸硬體限位 | `ADInMode[7]=0x20009`、`ADInMode[8]=0x2000A`（軸 B、功能 9/10，`ADInLog=192` 反相）。實測推 Z2 到底時 IN7 跳變、`BLimitStat` bit0 立起 → **IN7 是 Z2 限位，控制器有認到**。IN8 未測 |
 | A 軸軟體保護 | `hasShownMessage` 觸發後**永不重置**，等於只保護第一次 |
 | B 軸行程監控 | **完全沒有**。程式從未讀取 `B.Pos` |
 | 過壓保護 | 已實作（監控 `BForce`），但**高速 Jog 時反應不及** |
@@ -230,6 +284,10 @@ bool ForceCurr_SetForceCmdSource(
 - 相機鏈路打通：eGrabber 認到 Cheetah+ 640，能取像（低幀率、長曝光下可見訊號）
 - Z1、Z2 已實體接上 AGD301
 - 過壓保護已實作（`TriggerOverLoadRetract`），含 A/B 軸回彈、`isAutoStop` 中止 Auto 迴圈
+  - ⚠️ 這段程式碼**不在 GitHub repo 裡**（repo 只有 1107 snapshot），最新主程式還在別處，合併前別在 repo 版本上大改
+- **2026-11-13** PC ↔ AGD301 通訊確認（`tools/CommTest`，AGC301 類別，心跳往返 < 1 ms）；兩軸 MotorOn=0、ConFlt=0 "No error"
+- **2026-11-13** 手推兩軸，編碼器讀值有反應；Z2 限位 = IN7 已確認
+- **2026-11-19** 相機 1700 fps 錄 16,000 張 0 缺張（§2.6.1）
 
 ### 5.2 當前階段：**通電前的通訊測試**
 
@@ -246,14 +304,20 @@ bool ForceCurr_SetForceCmdSource(
 
 ### 5.3 待確認（擋住下一步）
 
-- [ ] **Z1 (`APM-XB04ADK3`) 規格**：幾相？額定/峰值電流？編碼器型式？——決定 `MotorType`/`ContCL`/`PeakCL`/`EncType`
-- [ ] **Z1 有無電磁煞車？**——決定能否 servo off 當緊急停止、決定 commissioning 安全程序
-- [ ] **X4 General I/O 上的 Z1 限位有沒有映射到 Axis A？** 若只是通用輸入，控制器不會自動當成硬體限位，Z1 等於完全沒有行程保護
+- [ ] **Z1 (`APM-XB04ADK3`) 規格**：幾相？額定/峰值電流？編碼器型式？——決定 `MotorType`/`ContCL`/`PeakCL`/`EncType`（控制器目前仍是舊 Z1 值）
+- [ ] **Z1 有無電磁煞車？**——決定能否 servo off 當緊急停止、決定 commissioning 安全程序。舊參數 `ABrakeUsed=1`，代表前一顆有煞車；手推 Z1 推得動 → 新 Z1 可能沒煞車或煞車沒接，待確認
+- [x] ~~X4 上的 Z1 限位有沒有映射到 Axis A？~~ → **沒有**（2026-11-13 讀 DInMode，無任何輸入指定給 Axis A）。待辦：找出 Z1 限位接在哪個 IN、再設定 DInMode
+- [ ] 推 Z1 時 DInPort **bit 28（IN29）** 也跳變，AGD301 只有 27 個隔離輸入 → 是哪個訊號？會不會是 Z1 限位？
+- [ ] 兩軸**方向**與**每 mm counts**（手推已知距離量測）
+- [ ] 上電 Pos ≈ 1.3 億 counts 的原因（絕對式編碼器？）、要不要做 Home / 設原點
+- [ ] `AAInGain[2]` 正確正負號、`AAInOffset[2]` 為何被改成 0；AI2 讀值 = 0 的原因（TM3 電源 / 接線）
 - [ ] `EncType = 6` 對應哪一種編碼器？（影響 ENC pin 3/4、9/10 的意義）
 - [ ] 力量單位：UI 標 g，控制器是 force-unit。**兩者換算未確認**，所以過壓門檻那個 `500` 目前意義不明 —— 需用已知砝碼實測建立對照
 - [ ] `AGendata[10]=20303` 每次輪詢都寫入的用途
 - [ ] Modbus HR0 讀回的是設定值還是實際壓力
 - [ ] 相機 pixel format `0x0007` 不相容問題（需問 Exosens 原廠或用 Xeneth 對照）
+- [ ] 1700 fps 時實際使用的觸發設定（Trigger Off vs Timer）記錄下來
+- [ ] 長時間錄影：實測 RAM 緩衝上限（Buffer 再加大是否能鎖定成功）或加裝 NVMe
 
 ---
 
@@ -299,3 +363,45 @@ AGD301 的 PEG 響應延遲 < 1 µs (AqB encoder)。
 frame timestamp 用 `buf.GetInfo<long>(BUFFER_INFO_TIMESTAMP)`，**不要用 `DateTime.Now`**。
 
 > 注意：只有 AGM800-CI 支援同時啟用 PEG 和 Position Lock。AGC/AGD 系列一次只能用一個。
+
+---
+
+## 8. 開發環境與工具（2026-11-13 ~ 11-19 建立）
+
+### 8.1 這台 PC
+
+| 項目 | 內容 |
+|---|---|
+| 主機 | Windows 10 Pro，i9-14900，32 GB RAM，Intel UHD 770 |
+| 磁碟 | C: `96FD25-S4TB-AD1` **SATA SSD** 3.7 TB（連續寫入 ~344 MB/s） |
+| repo 位置 | `C:\Users\User\Bondwave`（登入帳號 `user` 對 `C:\Users\CHANGJSD\...` 只有讀取權限，所以 clone 在這裡） |
+| 工具 | Git 2.56（winget 安裝，`C:\Program Files\Git\cmd\git.exe`，未加入目前 shell 的 PATH 時用完整路徑）、.NET 8 SDK 8.0.403 |
+| GitHub | `sean6585/bondwave`；工作分支 `feature/comm-test-tool`；push 需 Git Credential Manager 瀏覽器登入（已登入過） |
+
+### 8.2 網路
+
+| 網卡 | 用途 | 設定 |
+|---|---|---|
+| 「乙太網路」Intel I210 | **接 AGD301** | 固定 IP `172.1.1.10/24`，無閘道（Windows 預設 DHCP 會變 169.254.x.x → SDK 回 `EthernetInterfaceMismatch`） |
+| 「乙太網路 2」Intel I219-LM | 外網 | DHCP 192.168.123.x，不要動 |
+
+AGD301：`172.1.1.101`（ping < 1 ms）。真空控制器 `172.1.1.100:502` 在同網段（本次未測）。
+
+### 8.3 repo 內工具
+
+**`tools/CommTest/` — 唯讀通訊測試（.NET 8 WinForms）**
+- 用途：通電前/後確認 PC ↔ AGD301 ↔ Z1/Z2 通訊、編碼器、DIn/AIn、參數比對。
+- **刻意唯讀**：程式碼內沒有 MotorOn/Move/Jog/Home/Stop/寫參數；手動查詢只接受白名單名稱（`.par` 參數名 + 狀態名）且不可含 `=`。`--selftest` 驗證白名單規則。**修改這個工具時要維持唯讀**。
+- 執行：`dotnet run --project tools/CommTest/CommTest.csproj`；Log 在 `bin/Debug/net8.0-windows/logs/`（含 `PARAM` / `SNAP` / `RANGE` 行，gitignore 排除）。
+- 已知：DInPort 的 IN n 對應 bit n−1（由 Z2 限位實測反推）；`ADInMode` 等值的高 16 位 = 軸（1=A、2=B）、低 16 位 = 功能（推測，與 PCSuite 截圖「AI#2 = Axis B Force Feedback」一致）。
+
+**`tools/RecorderCheck/Check-Recording.ps1` — 錄影缺張檢查**
+- `powershell -ExecutionPolicy Bypass -File tools\RecorderCheck\Check-Recording.ps1 [-Path C:\W] [-ExpectedFps 1700]`
+- 讀 container 的 `index`，算 FPS、間隔分布、缺張位置。回傳 0 = 無缺張、1 = 有異常。
+- `index` 格式為反推（eGrabber Studio 26.10）：檔頭 8 bytes（magic `0x6EBABEBB`）、每張 216 bytes、時間戳在 +0x28（ns）。格式不符會報錯，不會亂給結果。
+
+### 8.4 給 AI 的工作提醒
+
+- 這台 PC 的 shell 是 Windows PowerShell 5.1：`.ps1` 含中文要存成 **UTF-8 with BOM**；`git commit -F -` 搭配 here-string 會失敗，請用訊息檔 `-F <file>`。
+- 執行中的 CommTest 會鎖住 `bin/`，建置前請使用者關閉視窗；殘留的 `AACommServer.exe` 是本工具產生的，可安全結束。
+- 相機與 eGrabber Studio 的操作都由使用者在 GUI 上做；AI 只能讀截圖、Memento log 或錄影檔分析。
