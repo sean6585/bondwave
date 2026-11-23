@@ -132,12 +132,15 @@ Load cell → TM3 訊號放大器（創唯實業）→ AGD301 Analog Input #2 �
 - **必須接兩條 CXP 線**：單條 PoCXP（17 W）餵不動相機（耗電 15.3 W + TE 製冷湧入電流），實測拔掉第二條相機就不亮。2× CXP-6 總頻寬與 1× CXP-12 相同（12.5 Gbps），不影響幀率
 - 相機參數用 **`AcquisitionFrameTime`（µs 週期，2026-11-19 使用者確認單位）**，不是 FrameRate。`FPS = 1,000,000 ÷ FrameTime`。約束：`ExposureTime ≤ AcquisitionFrameTime`。1700 fps → FrameTime 588。
 - **`AcquisitionFrameTime = 0` 不是有效值**：`TriggerMode = Off`（自由連拍）時相機依 FrameTime 拍，設 0 會完全沒有影像。
-- `TriggerMode = On` + `TriggerSource = Timer` 時，FPS 由相機內部 Timer 決定，不看 FrameTime（FrameTime 設 0 或 1 時仍能出圖，約 1000 fps）。
-- ⚠️ **2026-11-19 達到 1700 fps 時用的是哪一組觸發設定（Trigger Off + FrameTime 588，或 Trigger On + Timer 週期 588），沒有記錄下來，下次設定時請補上。**
+- **相機上電預設**（2026-11-23 讀到）：`PixelFormat = Mono16`（每張 655,360 B，1700 fps = 1.1 GB/s）、`TriggerMode = On`、`TriggerSource = Timer`、`AcquisitionFrameTime = 0`、`ExposureTime = 500`。Timer 相關參數只有 `TimerUpTime`、`TimerLifeTime`（數值每次讀都不同，像計數器，不是週期設定）。**錄影前要先切 Mono8**（`tools/CameraUI` 連線時自動切）。
+- ✅ **FPS 控制方式已確認（2026-11-23 實測）**：保持上電預設的 `TriggerMode=On` + `TriggerSource=Timer`，**只改 `AcquisitionFrameTime` 就決定週期**。`AcquisitionFrameTime=588` → 實測 1700.7 fps；`8333` → 120.0 fps。不需要改 Trigger。（FrameTime=0 時仍會出圖但 FPS 不受控，這解釋了之前「FrameTime 0/1 也有畫面」的現象。）
+- 曝光與亮度：同一場景（2026-11-23）曝光 5000 µs 平均灰階約 13；**曝光 450 µs 時幾乎全黑**（平均 0.0、最大 8–10）。1700 fps 錄影需要更強的 IR 光源或相機增益。
 - 設定順序：先降 `ExposureTime`、再縮 `AcquisitionFrameTime`；改完要在 Studio 停止 → 重新開始擷取。
 - Memento 持續報 `CoaXPress Warning: Unexpected data width in pixel format (0x0007)` — grabber 不認得相機送的格式代碼，**未解**。目前設 Mono8 時資料量正確（327,680 bytes/frame）
 - Memento 開 Verbose 時每張影像會產生數十行 log，1700 fps 下會吃 CPU/磁碟。正式錄影請調回 Warning / Info。
-- C# 整合：eGrabber SDK 內含 .NET binding，範例在 `C:\Program Files\Euresys\eGrabber\samples\csharp\`
+- C# 整合：`C:\Program Files\Euresys\eGrabber\clr\anycpu\EGrabber.NET.dll`（.NET 6+，含 `EGrabber` 與 `EGrabberRecorder`）；`clr\x86_64\EGrabber.NETFramework.dll` 給 .NET Framework。2026-11-23 的安裝**沒有 samples 資料夾**，API 以 `EGrabber.NET.xml` 與 `doc\egrabber-recorder-reference` 為準。已實作：`tools/CameraUI`（§8.3）。
+  - `Pop(timeout)` 逾時丟 `GenTLError`（`GcError == GC_ERR_TIMEOUT`）；`ScopedBuffer` Dispose 時自動歸還 buffer
+  - `Recorder` 要求容器資料夾**先存在**，否則 `INVALID_CONTAINER_PATH`；`CONTAINER_SIZE` 單位 bytes；`ReadInfo()` 不會自動跳下一筆（每次先設 `RECORD_INDEX`）
 
 #### 2.6.1 1700 fps 錄影（2026-11-19 驗證通過）
 
@@ -316,7 +319,8 @@ bool ForceCurr_SetForceCmdSource(
 - [ ] `AGendata[10]=20303` 每次輪詢都寫入的用途
 - [ ] Modbus HR0 讀回的是設定值還是實際壓力
 - [ ] 相機 pixel format `0x0007` 不相容問題（需問 Exosens 原廠或用 Xeneth 對照）
-- [ ] 1700 fps 時實際使用的觸發設定（Trigger Off vs Timer）記錄下來
+- [x] ~~1700 fps 時實際使用的觸發設定~~ → Trigger On + Timer（上電預設）+ `AcquisitionFrameTime=588`（§2.6）
+- [ ] 1700 fps（曝光 ≤ 570 µs）畫面太暗：IR 光源加強 / 相機增益設定
 - [ ] 長時間錄影：實測 RAM 緩衝上限（Buffer 再加大是否能鎖定成功）或加裝 NVMe
 
 ---
@@ -399,6 +403,12 @@ AGD301：`172.1.1.101`（ping < 1 ms）。真空控制器 `172.1.1.100:502` 在�
 - `powershell -ExecutionPolicy Bypass -File tools\RecorderCheck\Check-Recording.ps1 [-Path C:\W] [-ExpectedFps 1700]`
 - 讀 container 的 `index`，算 FPS、間隔分布、缺張位置。回傳 0 = 無缺張、1 = 有異常。
 - `index` 格式為反推（eGrabber Studio 26.10）：檔頭 8 bytes（magic `0x6EBABEBB`）、每張 216 bytes、時間戳在 +0x28（ns）。格式不符會報錯，不會亂給結果。
+
+**`tools/CameraUI/` — 相機控制介面 BondwaveCamera（.NET 8 WinForms，x64）**
+- 即時畫面（對焦，預設 120 fps + 對焦指標）、單張 TIFF、錄影（預設 1700 fps，eGrabber container，可設秒數）、回放、FPS / 缺張分析、匯出 TIFF、相機參數讀寫。
+- `CameraService` 獨佔 EGrabber 物件於專屬執行緒（符合 §7 的 Actor 原則），之後併入主控程式時直接搬。
+- FPS 控制方式三選一 + 自動偵測；實測第一種（只改 `AcquisitionFrameTime`）就成功，已存為預設。
+- 2026-11-23 實機測試（`--hwtest`）：連線 → 自動切 Mono8 → 偵測 1700.7 fps ✔ → 即時 120.0 fps 0 缺張 ✔ → 單張 TIFF ✔ → 錄影 2 s 3,402/3,402 張、1700.71 fps、0 缺張、讀回一致 ✔（磁碟寫完 3.3 s）。GUI 按鈕走的是同一個 `CameraService`，但 GUI 本身尚未由人實際操作驗證。詳見該資料夾 README。
 
 ### 8.4 給 AI 的工作提醒
 

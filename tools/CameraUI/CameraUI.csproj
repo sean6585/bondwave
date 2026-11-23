@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Bondwave 相機控制介面（Cheetah+ 640 CXP + Coaxlink + eGrabber）
+    - 即時畫面（對焦，預設 120 fps）、單張 TIFF、錄影（預設 1700 fps，eGrabber container）
+    - 錄影檔回放、FPS / 缺張分析、匯出 TIFF
+    相機部分寫在 CameraService，之後可以直接併進主控程式（含運動控制）。
+  -->
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PlatformTarget>x64</PlatformTarget>
+    <RootNamespace>CameraUI</RootNamespace>
+    <AssemblyName>BondwaveCamera</AssemblyName>
+    <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
+    <!-- eGrabber 安裝路徑（Euresys 安裝程式預設） -->
+    <EGrabberClr>C:\Program Files\Euresys\eGrabber\clr\anycpu</EGrabberClr>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="EGrabber.NET">
+      <HintPath>$(EGrabberClr)\EGrabber.NET.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>
