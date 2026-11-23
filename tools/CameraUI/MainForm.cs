@@ -396,6 +396,9 @@ public sealed class MainForm : Form
         {
             var r = await _cam.RecordAsync(_cfg.RecordFps, _cfg.RecordExposureUs, _cfg.RecordSeconds, _cfg.Method, _cfg.TimerFeature,
                                            _cfg.RecordRoot, _tbRecName.Text.Trim(), _cfg.RecordRamFraction);
+            // 進度只在錄影中由 UI timer 更新；結束那一刻要補上最終值，否則會停在最後一次輪詢（例如 1,697/1,701）
+            _prgRec.Value = r.Target > 0 ? (int)Math.Clamp(100.0 * r.Written / r.Target, 0, 100) : 0;
+            _lblRecProg.Text = $"已寫入 {r.Written:N0} / {r.Target:N0} 張，總耗時 {r.WallSec:0.0} s";
             var head = r.Error != null ? $"✘ 錄影失敗：{r.Error}" : r.Aborted ? "⚠ 錄影已中止" : "✔ 錄影完成";
             var text = $"{head}\r\n資料夾：{r.Path}\r\n寫入 {r.Written:N0} / {r.Target:N0} 張，耗時 {r.WallSec:0.0} s\r\n\r\n" +
                        (r.Stats != null ? r.Stats.Report("時間戳分析（相機實際拍攝時間）").Replace("\n", "\r\n") : "");
@@ -679,7 +682,6 @@ public sealed class MainForm : Form
         _btnRecAbort.Enabled = st == CamState.Recording;
         _btnDetect.Enabled = conn && st != CamState.Recording && !_busy;
         _btnFeatWrite.Enabled = st == CamState.Idle;
-        if (st != CamState.Recording && _cam.RecordTarget == 0) _lblRecProg.Text = "";
     }
 
     private void Log(string s) => AppendLog($"{DateTime.Now:HH:mm:ss.fff}  {s}");

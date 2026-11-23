@@ -20,6 +20,7 @@
     <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
     <!-- eGrabber 安裝路徑（Euresys 安裝程式預設） -->
     <EGrabberClr>C:\Program Files\Euresys\eGrabber\clr\anycpu</EGrabberClr>
+    <Platforms>AnyCPU;x64</Platforms>
   </PropertyGroup>
 
   <ItemGroup>
