@@ -75,6 +75,8 @@ public sealed class SafeController : IDisposable
     {
         "Pos", "PosErr", "PosRef", "VelRef", "Iq", "Id", "MotionStat", "LimitStat", "ConFlt",
         "StatReg", "HomingStat", "InTargetStat", "Force", "ForceRef", "ForceErr", "OperationMode",
+        // 力控 / 電流模式自動切換門檻（ISingleAxis 屬性，舊 .par 裡沒有；只讀）
+        "ForcePosErrTh", "ForceAInTh", "CurrPosErrTh", "CurrCurrTh", "CurrAInTh", "PosPosTh", "PosPosFlag",
     };
 
     private static readonly string[] ControllerStatusNames =
@@ -232,6 +234,18 @@ public sealed class SafeController : IDisposable
         string err = "";
         try { err = $"ErrorCode={c.ErrorCode} {c.ErrorMessage}"; } catch { }
         Log($"Connect({ip}) => {ok}   耗時 {sw.ElapsedMilliseconds} ms   {err}");
+
+        // 第一次啟動時 SDK 會自己開 AACommServer.exe，但檢查時它可能還沒開始監聽 → AACommServerNotRunning。
+        // 2026-11-13、11-26 都遇過；等一下再試一次即可。
+        if (!ok && err.Contains("AACommServerNotRunning"))
+        {
+            Log("AACommServer 剛啟動、尚未就緒，2 秒後重試一次…");
+            Thread.Sleep(2000);
+            try { ok = c.Connect(ip); }
+            catch (Exception ex) { Log($"Connect 例外：{ex.GetType().Name}: {ex.Message}"); ok = false; }
+            try { err = $"ErrorCode={c.ErrorCode} {c.ErrorMessage}"; } catch { }
+            Log($"重試 Connect({ip}) => {ok}   {err}");
+        }
 
         if (!ok)
         {

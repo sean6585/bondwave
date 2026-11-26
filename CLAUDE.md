@@ -2,7 +2,7 @@
 
 > 給在這個 repo 工作的 Claude 讀。描述**硬體現況、安全邊界、已知問題**。
 > 程式碼細節請直接看原始碼；這份文件記錄的是看程式碼看不出來的東西。
-> 最後更新：2026-11-19（加入 11/13 通訊測試、11/17–19 相機 1700 fps 驗證結果，見 §8）
+> 最後更新：2026-11-26（11/23 相機控制介面與實機測試 §2.6 / §8.3；11/26 韌體層保護選項 §3.4、更換 AGD301、新增 IAI 下相機滑軌 §2.0）
 
 ---
 
@@ -21,10 +21,24 @@ IPC (Windows)
 ├── Ethernet ──────── Agito AGD301-ET-2D09-001   馬達控制器
 │                      ├── Axis A ── Z1 (型號已更換，見下)
 │                      └── Axis B ── Z2 = AVM90-15 音圈馬達
-├── Modbus TCP ────── 真空/壓力控制器 172.1.1.100:502
+├── Modbus TCP ────── 真空/壓力控制器 172.1.1.100:502（2026-11-26 ping 不到）
+├── EtherNet/IP ───── IAI PCON-CB-35PWAI-EP-0-0（下相機滑軌）IP 未知，2026-11-26 尚未連上
+│                      └── IAI RCP6-TA4C-WA-35P-2.5-25-P3-S-B
 └── PCIe ──────────── Euresys Coaxlink Quad CXP-12 Value (PC3623)
                        └── CXP ×2 ── Cheetah+ 640 CXP SWIR 相機
 ```
+
+> **2026-11-26 換了一台 AGD301**：IP 一樣 `172.1.1.101`，但 MAC 不同（舊 `…0E-FA` → 新 `…43-48`）。§2.1–§2.4、§3.2 的「控制器現值」都是**舊那台**讀的，新控制器的參數要重新讀（`tools/CommTest --probe`）。
+
+### 2.0 下相機滑軌（IAI，2026-11-26 加入，**尚未通訊、尚未設定**）
+
+| 項目 | 型號 / 推讀（依 IAI 命名規則，待型錄確認） |
+|---|---|
+| 電動缸 | `RCP6-TA4C-WA-35P-2.5-25-P3-S-B`：RCP6 步進馬達 RoboCylinder、小型平台款、**WA = 免電池絕對式編碼器**、□35 步進馬達、**導程 2.5 mm**、**行程 25 mm**、P3 世代控制器、線長 3 m、**B = 附煞車** |
+| 控制器 | `PCON-CB-35PWAI-EP-0-0`：PCON-CB（步進馬達控制器）、搭配 35P 馬達 + 免電池絕對式編碼器、**EP = EtherNet/IP**、24 V |
+| 電腦端控制方式 | EtherNet/IP：**電腦要當 scanner（originator）**，用 C# EtherNet/IP 函式庫做 implicit I/O（Class 1）或 explicit messaging；控制器端要設定 fieldbus 運作模式（遠端 I/O / 位置直接指定等）與 IP。**不是 Modbus/TCP**，repo 內的 EasyModbus 不能直接用。設定 / 讀警報碼用 IAI 的 PC 軟體（IA-OS / RC PC Software）+ USB 轉接線，或教導器 |
+| 現況 | 控制器 ALM 紅燈（警報碼未讀到）。從 IPC 的「乙太網路」掃 172.1.1.0/24 與 EtherNet/IP ListIdentity 廣播都**沒有回應** → 不在這條網路上，或 IP 在別的網段 |
+| 安全 | 附煞車、可能垂直安裝；絕對位置重置 / 回原點時軸**會自己移動**，操作前淨空 |
 
 ### 2.1 控制器 AGD301-ET-2D09-001
 
@@ -188,7 +202,7 @@ Load cell → TM3 訊號放大器（創唯實業）→ AGD301 Analog Input #2 �
 |---|---|
 | A 軸韌體行程限位 | **關閉**（±1.6e9）。唯一保護是 20 ms 輪詢的 `Pos > 800000` 軟體判斷 |
 | A 軸硬體限位 | 2026-11-13 讀控制器：**沒有任何數位輸入（DInMode）指定給 Axis A**。Z1 限位即使接在 X4，控制器也不會當成限位 |
-| B 軸硬體限位 | `ADInMode[7]=0x20009`、`ADInMode[8]=0x2000A`（軸 B、功能 9/10，`ADInLog=192` 反相）。實測推 Z2 到底時 IN7 跳變、`BLimitStat` bit0 立起 → **IN7 是 Z2 限位，控制器有認到**。IN8 未測 |
+| B 軸硬體限位 | `ADInMode[7]=0x20009`、`ADInMode[8]=0x2000A` → 軸 B、功能 9 = **REV_LIMIT**、10 = **FWD_LIMIT**（功能碼見 §3.4 `eDInMode`；`ADInLog=192` 反相）。實測推 Z2 到底時 IN7 跳變、`BLimitStat` bit0 立起 → **IN7 = Z2 反向限位，控制器有認到**。IN8（正向）未測 |
 | A 軸軟體保護 | `hasShownMessage` 觸發後**永不重置**，等於只保護第一次 |
 | B 軸行程監控 | **完全沒有**。程式從未讀取 `B.Pos` |
 | 過壓保護 | 已實作（監控 `BForce`），但**高速 Jog 時反應不及** |
@@ -208,7 +222,34 @@ Load cell → TM3 訊號放大器（創唯實業）→ AGD301 Analog Input #2 �
 
 寫過壓相關程式碼時，不要把軟體層講得像是唯一防線。
 
-### 3.4 指令時序注意
+### 3.4 控制器（韌體）層的「阻力過大」保護選項（2026-11-26 查證，**尚未設定、尚未實測**）
+
+馬達本體（線性馬達 / 音圈）是被動元件，**沒有內建停止功能**；能自己停的是 AGD301 韌體（16 kHz 迴路，反應在 0.1 ms 等級，不經過 PC）。可用的機制：
+
+| 機制 | 參數 / API | 觸發後行為 | .par 現值（舊 Z1 時代） |
+|---|---|---|---|
+| 電流上限（= 推力上限，物理硬上限） | `CurrLimFwd` / `CurrLimRev`、`PeakCL`、`ContCL` | 推力不會超過 Kf × I_lim | A/B 都是 4000 |
+| 位置誤差過大 → 故障斷電 | `MaxPosErr` → `CON_FLT_HIGH_POS_ERR`(1020) | 被擋住時誤差累積超過門檻即 fault | 150000 counts（很大，等於很晚才觸發） |
+| 卡死偵測 | `StallCfg` / `StallThPcnt` → `CON_FLT_MOTOR_STUCK`(1007) | fault | **`StallCfg=0`（關閉）**、50% |
+| 過熱 / I²t | `MaxMotorTemp`、`CON_FLT_MOTOR_I2T`(1044) | fault | 80 °C |
+| **接觸自動切力控**（最適合 bond） | `ForceCurr_SetForceModeSWTrigSrc(forcePosErrTh, forceAInTh)` | 位置誤差 > 門檻 **或** AI（load cell）> 門檻時，韌體自動從位置模式切到力控，壓力被限制在 force profile | 未設定 |
+| 接觸自動切電流模式 | `ForceCurr_SetCurrModeSWTrigSrc(currPosErrTh, currCurrTh, currCurrThDir, currAInTh)` | 位置誤差 / 電流 / AI 超過門檻 → 改為定電流（定推力） | `BCurrPosTh=146000`，其餘 0 |
+| 力量誤差保護 | `ForceCurr_SetForceRefFilt(forceRefFilt, maxForceErr, maxForceErrOL, forceRelFOn)` | 力控時誤差過大 → 保護 | `MaxForceErr=2000`、`MaxForceErrOL=50000`（預設） |
+| 慢速接近 | `ForceCurr_SetSlowApproach(speedChgPos, speedChgDir, speedChgNew, speedChgOn)` | 到指定位置自動降速，降低撞擊力 | 未設定 |
+| 硬體輸入立即停 | `DInMode` 功能 4 = STOP_MOTION、8 = ABORT_MOTION、11 = TORQUE_LIMIT_ON | 外部開關 / 比較器訊號 → 韌體直接停 | 未使用 |
+| 類比輸入限扭力 | `AInMode` 7 / 8 = ANALOG_INPUT_REV/FWD_TORQUE_LIMIT | 用類比電壓即時限制電流 | 未使用 |
+
+- `eDInMode`：0 USER_INPUT、1 DEDICATED_HW、2 MOTOR_ON、3 BEGIN、4 STOP_MOTION、5 CLEAR_IN_PULSES、6 ABORT_RESUME、7 ALARM_RESET、8 ABORT_MOTION、9 REV_LIMIT、10 FWD_LIMIT、11 TORQUE_LIMIT_ON、12 DYNAMIC_BRAKE、13 LOCK_STATIC_BRAKE、14 CONTROL_SET_CHANGE、15 ADD_FILTER、16–18 MODE_SWITCH、19 CLEAR_ABS_ENC、20 CHANGE_SPEED、21 HOME。
+- `eAInMode`：0 USER、1 VELOCITY_CMD、2 CURRENT_CMD、3 FORCE_FEEDBACK、4 FORCE_CMD、5 JOYSTICK、6 TORQUE_COMP、7 REV_TORQUE_LIMIT、8 FWD_TORQUE_LIMIT。
+- 來源與文件位置（repo 內有三份 CHM，**版本不同**）：
+  - ✅ `AML Bond wave 1107/packages/Agito.AAMotion.6.0.2/content/AAMotion_Documentation.chm` — **v6.0.2，與程式用的 DLL 同版，查 API 用這份**。有 `ISingleAxis.ForceCurr_*` 各方法頁，但頁面**只有函式簽章**，說明欄只列出它寫入的控制器參數名（例如 `ForceCurr_SetForceModeSWTrigSrc` → `ForcePosErrTh, ForceAInTh`），對應屬性頁標示「Missing documentation」。
+  - `AKRIBIS/AAMotion_Documentation.chm`、`AML EFEM Control System/AAMotion_Documentation.chm` — v4.21.8 舊版，沒有 ForceCurr。`eDInMode` / `eAInMode` / `ConFaultEnum` 兩版都有。
+  - `AGMotionManual.docx` — 另一套 `AG_*` 函式（AGMotion namespace）的中文手冊，不是 ISingleAxis。
+  - 從網路下載的 CHM 開啟後若內容空白：檔案右鍵 → 內容 → 勾「解除封鎖」。
+- 結論：ForceCurr 各參數的**單位、比較方向、觸發後的確切行為官方 SDK 文件沒寫**，要向 Akribis 原廠要控制器端的參數 / 指令參考手冊（keyword reference），並小行程實測。
+- 前提：用 AI（load cell）當觸發源之前，必須先修好 §2.4 的 AI2 = 0 與 `AAInGain[2]` 正負號問題。
+
+### 3.5 指令時序注意
 
 `Stop()` 是**減速停止**，不是立即斷電。`Stop()` 之後緊接著下 `MoveAbs()`，在 controller 仍在減速時會被忽略 —— 必須等 `MotionStat == 0` 再下一個運動指令。
 同理，`ForceCurr_GotoPosMode()` 切模式也需要時間生效。
@@ -322,6 +363,8 @@ bool ForceCurr_SetForceCmdSource(
 - [x] ~~1700 fps 時實際使用的觸發設定~~ → Trigger On + Timer（上電預設）+ `AcquisitionFrameTime=588`（§2.6）
 - [ ] 1700 fps（曝光 ≤ 570 µs）畫面太暗：IR 光源加強 / 相機增益設定
 - [ ] 長時間錄影：實測 RAM 緩衝上限（Buffer 再加大是否能鎖定成功）或加裝 NVMe
+- [ ] **新 AGD301（2026-11-26 更換）參數重讀**，並與舊 `.par` 比對
+- [ ] **IAI 下相機滑軌**（§2.0）：讀 ALM 警報碼並排除；確認 PCON-CB 的 EtherNet/IP IP 位址與實體接線；選定 C# EtherNet/IP 函式庫與控制器 fieldbus 運作模式
 
 ---
 
@@ -397,7 +440,9 @@ AGD301：`172.1.1.101`（ping < 1 ms）。真空控制器 `172.1.1.100:502` 在�
 - 用途：通電前/後確認 PC ↔ AGD301 ↔ Z1/Z2 通訊、編碼器、DIn/AIn、參數比對。
 - **刻意唯讀**：程式碼內沒有 MotorOn/Move/Jog/Home/Stop/寫參數；手動查詢只接受白名單名稱（`.par` 參數名 + 狀態名）且不可含 `=`。`--selftest` 驗證白名單規則。**修改這個工具時要維持唯讀**。
 - 執行：`dotnet run --project tools/CommTest/CommTest.csproj`；Log 在 `bin/Debug/net8.0-windows/logs/`（含 `PARAM` / `SNAP` / `RANGE` 行，gitignore 排除）。
-- 已知：DInPort 的 IN n 對應 bit n−1（由 Z2 限位實測反推）；`ADInMode` 等值的高 16 位 = 軸（1=A、2=B）、低 16 位 = 功能（推測，與 PCSuite 截圖「AI#2 = Axis B Force Feedback」一致）。
+- `--probe [IP]`（2026-11-26 新增）：不用點畫面，唯讀連線 → 識別資訊、參數（含 `MaxPosErr` / `StallCfg` / `ForcePosErrTh` 等保護參數）、一筆兩軸狀態 → 斷線，結果寫 `probe.txt`。**新 AGD301 還沒跑過**。
+- 第一次連線常回 `AACommServerNotRunning`（SDK 剛啟動 `AACommServer.exe`、還沒在 `127.0.0.1:399` 監聽）。11/26 起遇到會自動等 2 秒重試一次。
+- 已知：DInPort 的 IN n 對應 bit n−1（由 Z2 限位實測反推）；`ADInMode` 等值的高 16 位 = 軸（1=A、2=B）、低 16 位 = 功能碼（§3.4 `eDInMode`，已由 SDK 文件確認）。
 
 **`tools/RecorderCheck/Check-Recording.ps1` — 錄影缺張檢查**
 - `powershell -ExecutionPolicy Bypass -File tools\RecorderCheck\Check-Recording.ps1 [-Path C:\W] [-ExpectedFps 1700]`
